@@ -1,5 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { loadSkillCatalog } from "../skills/loader.ts";
 import type { RunContext } from "./types.ts";
 
 export function buildSystemPrompt(ctx: RunContext): string {
@@ -13,6 +14,24 @@ export function buildSystemPrompt(ctx: RunContext): string {
         .join("\n")
     : "(none yet)";
 
+  const catalog = loadSkillCatalog(ctx.config.harness.skillDirs).filter(
+    (skill) =>
+      ctx.config.harness.activeSkills.length === 0 ||
+      ctx.config.harness.activeSkills.includes(skill.name),
+  );
+  const availableSkills = catalog.length
+    ? catalog.map((skill) => `- ${skill.name}: ${skill.description}`).join("\n")
+    : "(none)";
+
+  const activeSkills = [...ctx.loadedSkills.values()]
+    .map(
+      (skill) =>
+        `<active_skill name="${skill.name}">\n${skill.body}\n\nfiles:\n${skill.files
+          .map((file) => `- ${file}`)
+          .join("\n")}\n</active_skill>`,
+    )
+    .join("\n\n");
+
   return [
     "You are minor-artifact-harness, a small agent harness for inspecting minor-release artifacts.",
     `Run mode: ${ctx.inputs.mode}.`,
@@ -20,7 +39,10 @@ export function buildSystemPrompt(ctx: RunContext): string {
     "Use the policy from the harness configuration; do not try to loosen it.",
     "",
     "## Available skills",
-    "No skills are loaded yet. Load one with skill.load when it is available.",
+    availableSkills,
+    "",
+    "## Active skill",
+    activeSkills || "(none loaded yet; call skill.load when a skill applies)",
     "",
     "## Tools",
     toolLines,

@@ -1,8 +1,9 @@
 import { mkdirSync } from "node:fs";
 import type { HarnessConfig } from "../config/schema.ts";
+import { loadSkill } from "../skills/loader.ts";
 import type { ToolRegistry } from "../tools/registry.ts";
 import { createTraceWriter } from "./trace.ts";
-import type { ModelAdapter, RunContext, RunInputs } from "./types.ts";
+import type { LoadedSkill, ModelAdapter, RunContext, RunInputs } from "./types.ts";
 
 export async function createRunContext(opts: {
   runId: string;
@@ -15,6 +16,7 @@ export async function createRunContext(opts: {
   mkdirSync(opts.runDir, { recursive: true });
 
   const activeToolNames = new Set<string>();
+  const loadedSkills = new Map<string, LoadedSkill>();
   if (opts.inputs.mode === "fixed") {
     for (const stage of opts.config.flow.stages) activeToolNames.add(stage.tool);
   } else if (opts.config.harness.activeSkills.length === 0) {
@@ -22,6 +24,18 @@ export async function createRunContext(opts: {
   } else {
     activeToolNames.add("skill.load");
     activeToolNames.add("skill.read");
+
+    const selection = opts.inputs.skillSelection ?? opts.config.harness.skillSelection;
+    if (selection === "preload") {
+      const allowlist = opts.config.harness.toolAllowlist;
+      for (const name of opts.config.harness.activeSkills) {
+        const skill = loadSkill(name, opts.config.harness.skillDirs);
+        loadedSkills.set(skill.name, skill);
+        for (const tool of skill.tools) {
+          if (allowlist.length === 0 || allowlist.includes(tool)) activeToolNames.add(tool);
+        }
+      }
+    }
   }
 
   return {
@@ -34,7 +48,7 @@ export async function createRunContext(opts: {
     artifact: null,
     manifest: null,
     checkResults: new Map(),
-    loadedSkills: new Map(),
+    loadedSkills,
     activeToolNames,
     model: opts.model,
     trace: createTraceWriter(opts.runDir),

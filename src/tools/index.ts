@@ -9,6 +9,7 @@ import {
   checkChangelogTool,
 } from "./checks.ts";
 import { writeReportTool } from "./report.ts";
+import { skillLoadTool, skillReadTool } from "./skill.ts";
 
 export function createRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
@@ -21,5 +22,7 @@ export function createRegistry(): ToolRegistry {
   registry.register(checkForbiddenTool);
   registry.register(checkChangelogTool);
   registry.register(writeReportTool);
+  registry.register(skillLoadTool);
+  registry.register(skillReadTool);
   return registry;
 }
