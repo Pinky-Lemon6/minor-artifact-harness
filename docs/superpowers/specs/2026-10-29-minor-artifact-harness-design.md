@@ -562,10 +562,12 @@ minor-artifact-harness/
 | 选择 | 理由 |
 |---|---|
 | Node.js 26 + TypeScript | 环境现成；Node 26 可直接运行可擦除语法的 TS，省掉构建步骤；前后端同语言 |
-| `fflate` | 纯 JS 的 zip 读写，体积小，便于测试中生成制品 |
+| `yauzl` | 读取制品 zip，能检查 symlink 和外部属性，适合安全解压 |
+| `yazl` / `fflate`（dev） | 生成测试制品 zip；`yazl` 可设置 symlink 模式，`fflate` 用于普通 zip |
 | `yaml` | 配置和 SKILL.md frontmatter 解析 |
 | `zod` | 配置和工具参数校验；Zod 4 可生成 JSON Schema |
 | `semver` | 版本比较和 diff，避免手写边界错误 |
+| `minimatch` | 禁用文件模式匹配；开启 `dot: true` 以匹配 `.env` 等点文件 |
 | Node 内置 `http` + 原生 HTML/CSS/JS | 不引入 Web 框架，聚焦 Harness；表单不需要构建链 |
 | Node 内置 `node:test` | 零额外测试框架，离线可跑 |
 | `typescript`（dev） | 只做 `tsc --noEmit` 类型检查 |
