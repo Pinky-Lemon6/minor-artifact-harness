@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { ensureFixtures } from "../../fixtures/make-fixtures.ts";
 import { validatePolicy } from "../config/policy.ts";
 import type { HarnessConfig } from "../config/schema.ts";
@@ -41,15 +41,36 @@ export async function executeRun(opts: {
   const runDir = resolve(cwd, config.report.outputDir, runId);
   mkdirSync(runDir, { recursive: true });
 
+  let effectiveInputs = inputs;
+  if (inputs.artifactSource === "upload" && inputs.uploadPath) {
+    const stored = join(runDir, "artifact.zip");
+    copyFileSync(inputs.uploadPath, stored);
+    effectiveInputs = { ...inputs, uploadPath: stored };
+  }
+
   const registry = createRegistry();
-  if (inputs.artifactSource === "fixture") ensureFixtures(cwd);
+  if (effectiveInputs.artifactSource === "fixture") ensureFixtures(cwd);
   validatePolicy(config, new Set(registry.listNames()));
 
   const model =
-    inputs.mode === "fixed"
+    effectiveInputs.mode === "fixed"
       ? new MockModel([])
-      : new MockModel(loadMockPlan(resolve(cwd, config.model.mock.planFile), inputs));
+      : new MockModel(loadMockPlan(resolve(cwd, config.model.mock.planFile), effectiveInputs));
 
-  const ctx = await createRunContext({ runId, runDir, inputs, config, model, registry });
-  return inputs.mode === "fixed" ? runFixed(ctx) : runAgent(ctx);
+  const ctx = await createRunContext({
+    runId,
+    runDir,
+    inputs: effectiveInputs,
+    config,
+    model,
+    registry,
+  });
+  const result =
+    effectiveInputs.mode === "fixed" ? await runFixed(ctx) : await runAgent(ctx);
+
+  if (effectiveInputs.artifactSource === "upload" && !config.runs.retainArtifacts) {
+    rmSync(join(runDir, "artifact.zip"), { force: true });
+  }
+
+  return result;
 }

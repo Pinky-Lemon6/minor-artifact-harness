@@ -3,6 +3,7 @@ import { parseArgs } from "node:util";
 import { defaultConfig, type HarnessConfig } from "./config/schema.ts";
 import { loadConfig } from "./config/load.ts";
 import { executeRun } from "./harness/execute.ts";
+import { startServer } from "./server/server.ts";
 import type { RunInputs, RunResult } from "./harness/types.ts";
 
 function usage(): void {
@@ -95,8 +96,11 @@ async function main(): Promise<number> {
   }
 
   if (command === "serve") {
-    console.log("the HTTP server arrives in Task 13; run `npm run dev` after that task");
-    return 0;
+    const config = loadConfig({ cwd });
+    if (values.port) config.server.port = Number(values.port);
+    startServer(config, cwd);
+    console.log(`http://${config.server.host}:${config.server.port}`);
+    return await new Promise<number>(() => {});
   }
 
   usage();
