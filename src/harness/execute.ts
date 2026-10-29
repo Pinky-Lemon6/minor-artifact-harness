@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { ensureFixtures } from "../../fixtures/make-fixtures.ts";
 import type { HarnessConfig } from "../config/schema.ts";
 import { MockModel, loadMockPlan } from "../models/mock.ts";
-import { demoEchoTool } from "../tools/demo.ts";
-import { ToolRegistry } from "../tools/registry.ts";
+import { createRegistry } from "../tools/index.ts";
 import { createRunContext } from "./context.ts";
 import { runAgent } from "./loop.ts";
 import type { RunInputs, RunResult } from "./types.ts";
@@ -38,8 +38,8 @@ export async function executeRun(opts: {
   mkdirSync(runDir, { recursive: true });
 
   const model = new MockModel(loadMockPlan(resolve(cwd, config.model.mock.planFile), inputs));
-  const registry = new ToolRegistry();
-  registry.register(demoEchoTool);
+  const registry = createRegistry();
+  if (inputs.artifactSource === "fixture") ensureFixtures(cwd);
 
   const ctx = await createRunContext({ runId, runDir, inputs, config, model, registry });
   return runAgent(ctx);
