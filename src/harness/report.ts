@@ -8,6 +8,7 @@ const ERROR_REASONS = new Set([
   "plan_assertion_failed",
   "model_error",
   "required_check_unavailable",
+  "artifact_unreadable",
 ]);
 
 function stableStringify(value: unknown): string {

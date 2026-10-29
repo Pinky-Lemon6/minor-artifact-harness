@@ -6,7 +6,7 @@
 
 ```bash
 npm install
-npm test          # 45 个离线测试
+npm test          # 68 个离线测试
 npm run typecheck
 npm run demo      # 跑一个脚本化 Agent 演示
 npm run dev       # 启动检测表单：http://127.0.0.1:4317

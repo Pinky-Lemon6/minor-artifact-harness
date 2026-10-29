@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { checkRequiredFiles, checkIntegrity } from "../src/tools/checks.ts";
@@ -56,4 +56,26 @@ test("an unlisted payload file fails integrity", async () => {
   const result = await checkIntegrity(ctx);
   assert.equal(result.status, "fail");
   assert.match(result.summary, /extra/i);
+});
+
+test("manifest paths cannot escape the workspace", async () => {
+  const ctx = await ctxFor("good");
+  const manifestPath = join(ctx.workspace!, "manifest.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as {
+    files: { path: string; sha256: string; size: number }[];
+  };
+  manifest.files.push({ path: "../outside.txt", sha256: "0".repeat(64), size: 0 });
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+  ctx.manifest = { ...ctx.manifest!, files: manifest.files };
+  const result = await checkIntegrity(ctx);
+  assert.equal(result.status, "fail");
+  assert.match(result.summary, /path/i);
+});
+
+test("a directory does not satisfy a required file", async () => {
+  const ctx = await ctxFor("good");
+  await mkdir(join(ctx.workspace!, "required-dir"));
+  ctx.config.checks.requiredFiles = ["required-dir"];
+  const result = await checkRequiredFiles(ctx);
+  assert.equal(result.status, "fail");
 });

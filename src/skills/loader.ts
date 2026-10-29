@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { LoadedSkill, SkillMeta } from "../harness/types.ts";
 
@@ -95,11 +95,15 @@ export function loadSkillCatalog(skillDirs: string[]): SkillMeta[] {
 }
 
 export function loadSkill(name: string, skillDirs: string[]): LoadedSkill {
+  if (!name || name === "." || name === ".." || !/^[A-Za-z0-9._-]+$/.test(name)) {
+    throw new SkillError(`invalid skill name: ${name}`);
+  }
   for (const base of skillDirsResolved(skillDirs)) {
-    const path = join(base, name, "SKILL.md");
+    const dir = resolve(base, name);
+    if (!dir.startsWith(`${base}${sep}`)) continue;
+    const path = join(dir, "SKILL.md");
     if (!existsSync(path)) continue;
     const parsed = parseSkillFile(path);
-    const dir = dirname(path);
     return { ...parsed, dir, files: listSkillFiles(dir) };
   }
   throw new SkillError(`skill not found: ${name}`);

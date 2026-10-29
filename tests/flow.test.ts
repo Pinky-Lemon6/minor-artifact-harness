@@ -53,3 +53,24 @@ test("fixed flow rejects an unknown stage or a stage outside the allowlist", () 
 test("runFixed is exported", () => {
   assert.equal(typeof runFixed, "function");
 });
+
+test("fixed flow rejects a stage list that omits a required tool", () => {
+  assert.throws(
+    () =>
+      validatePolicy(
+        {
+          ...defaultConfig,
+          flow: {
+            mode: "fixed",
+            stages: [
+              { tool: "artifact.open" },
+              { tool: "artifact.manifest" },
+              { tool: "checks.version" },
+            ],
+          },
+        },
+        new Set(createRegistry().listNames()),
+      ),
+    /missing required tool/i,
+  );
+});

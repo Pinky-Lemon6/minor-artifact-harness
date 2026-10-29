@@ -13,6 +13,7 @@ export type HarnessConfig = {
     activeSkills: string[];
     skillSelection: SkillSelection;
     toolAllowlist: string[];
+    enforceRequiredChecks: boolean;
   };
   model: {
     adapter: "mock" | "openai-compat";
@@ -28,6 +29,7 @@ export type HarnessConfig = {
     allowedBumps: ("major" | "minor" | "patch")[];
     changelogFile: string;
     allowExtraFiles: boolean;
+    checkFilenameVersion: boolean;
   };
   report: { outputDir: string; formats: ("json" | "markdown")[]; template: string };
   runs: { retainArtifacts: boolean };
@@ -51,6 +53,7 @@ const harnessSchema = z
     activeSkills: z.array(z.string()),
     skillSelection: z.enum(["auto", "preload"]),
     toolAllowlist: z.array(z.string()),
+    enforceRequiredChecks: z.boolean(),
   })
   .strict();
 
@@ -85,13 +88,14 @@ const checksSchema = z
     allowedBumps: z.array(z.enum(["major", "minor", "patch"])),
     changelogFile: z.string(),
     allowExtraFiles: z.boolean(),
+    checkFilenameVersion: z.boolean(),
   })
   .strict();
 
 const reportSchema = z
   .object({
     outputDir: z.string(),
-    formats: z.array(z.enum(["json", "markdown"])),
+    formats: z.array(z.enum(["json", "markdown"])).min(1),
     template: z.string(),
   })
   .strict();
@@ -124,6 +128,7 @@ export const defaultConfig: HarnessConfig = {
     activeSkills: ["minor-artifact-check"],
     skillSelection: "auto",
     toolAllowlist: [],
+    enforceRequiredChecks: true,
   },
   model: {
     adapter: "mock",
@@ -156,6 +161,7 @@ export const defaultConfig: HarnessConfig = {
     allowedBumps: ["minor", "patch"],
     changelogFile: "CHANGELOG.md",
     allowExtraFiles: false,
+    checkFilenameVersion: true,
   },
   report: {
     outputDir: "runs",

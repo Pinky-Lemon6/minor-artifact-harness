@@ -4,6 +4,7 @@ harness:
   activeSkills: [minor-artifact-check]
   skillSelection: auto
   toolAllowlist: []
+  enforceRequiredChecks: true
 
 model:
   adapter: mock
@@ -35,6 +36,7 @@ checks:
   allowedBumps: [minor, patch]
   changelogFile: CHANGELOG.md
   allowExtraFiles: false
+  checkFilenameVersion: true
 
 report:
   outputDir: runs

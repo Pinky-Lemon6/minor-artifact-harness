@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -80,4 +80,44 @@ test("missing previous version fails; unparsable filename is a skip", async () =
     await ctxFor("good", { declared: "1.5.0", previous: "1.4.2", filename: "artifact.zip" }),
   );
   assert.equal((result.evidence.filenameVersion as { status: string }).status, "skip");
+});
+
+test("version rollback and equal versions fail", async () => {
+  assert.equal(
+    (await checkVersion(await ctxFor("good", { declared: "1.5.0", previous: "1.6.0" }))).status,
+    "fail",
+  );
+  assert.equal(
+    (await checkVersion(await ctxFor("good", { declared: "1.5.0", previous: "1.5.1" }))).status,
+    "fail",
+  );
+  assert.equal(
+    (await checkVersion(await ctxFor("good", { declared: "1.5.0", previous: "1.5.0" }))).status,
+    "fail",
+  );
+});
+
+test("prerelease versions fail by default", async () => {
+  const result = await checkVersion(
+    await ctxFor("good", { declared: "1.5.0-rc.1", previous: "1.4.2" }),
+  );
+  assert.equal(result.status, "fail");
+});
+
+test("absent package.json is a skip, not a failure", async () => {
+  const ctx = await ctxFor("good", { declared: "1.5.0", previous: "1.4.2" });
+  await rm(join(ctx.workspace!, "package.json"));
+  const result = await checkVersion(ctx);
+  assert.equal((result.evidence.packageVersion as { status: string }).status, "skip");
+});
+
+test("filename version can be disabled", async () => {
+  const ctx = await ctxFor("good", {
+    declared: "1.5.0",
+    previous: "1.4.2",
+    filename: "artifact-9.9.9.zip",
+  });
+  assert.equal((await checkVersion(ctx)).status, "fail");
+  ctx.config.checks.checkFilenameVersion = false;
+  assert.equal((await checkVersion(ctx)).status, "pass");
 });

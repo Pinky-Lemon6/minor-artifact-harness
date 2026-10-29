@@ -8,7 +8,7 @@ export function writeZip(entries: Record<string, Uint8Array>): Uint8Array {
   return zipSync(entries);
 }
 
-function assertSafePath(name: string): string {
+export function assertSafeZipPath(name: string): string {
   if (name.includes("\0")) throw new Error(`invalid path: ${name}`);
   if (name.startsWith("/")) throw new Error(`absolute path: ${name}`);
   if (/^[A-Za-z]:/.test(name)) throw new Error(`absolute path: ${name}`);
@@ -54,7 +54,7 @@ export function readZip(bytes: Uint8Array, limits: ZipLimits): Promise<ZipEntry[
 
         let normalized: string;
         try {
-          normalized = assertSafePath(entry.fileName);
+          normalized = assertSafeZipPath(entry.fileName);
         } catch (error) {
           fail(error instanceof Error ? error : new Error(String(error)));
           return;

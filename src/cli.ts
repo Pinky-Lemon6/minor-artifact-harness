@@ -32,6 +32,7 @@ function printResult(result: RunResult): void {
 function demoConfig(): HarnessConfig {
   const config = structuredClone(defaultConfig);
   config.harness.activeSkills = [];
+  config.harness.enforceRequiredChecks = false;
   config.model.mock.planFile = "fixtures/plans/demo.json";
   return config;
 }
@@ -71,8 +72,8 @@ async function main(): Promise<number> {
   }
 
   if (command === "inspect") {
-    if (!values.version || !values.previous) {
-      console.error("inspect requires --version and --previous");
+    if (!values.version) {
+      console.error("inspect requires --version");
       usage();
       return 2;
     }
@@ -87,7 +88,7 @@ async function main(): Promise<number> {
       uploadPath: values.zip ? resolve(cwd, values.zip) : undefined,
       artifactFilename: values.zip ? basename(values.zip) : `${values.fixture}.zip`,
       declaredVersion: values.version,
-      previousVersion: values.previous,
+      previousVersion: values.previous ?? "",
       mode: values.mode === "fixed" ? "fixed" : "agent",
     };
     const result = await executeRun({ inputs, config: loadConfig({ cwd }), cwd });

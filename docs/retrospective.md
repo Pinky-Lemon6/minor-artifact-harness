@@ -5,7 +5,7 @@
 - 一个可运行的迷你 Harness：Agent 循环、工具注册表、Skill 加载、配置分层、HTTP 表单、报告与轨迹。
 - 两种编排：Agent 模式与固定流程模式，共用同一套工具、策略和报告结构。
 - 五项检测：版本一致性、必填文件、完整性、禁用文件、变更记录。
-- 离线可跑：默认 MockModel，不依赖模型 API Key；`npm test` 45 个测试。
+- 离线可跑：默认 MockModel，不依赖模型 API Key；`npm test` 68 个测试。
 - 可观察：每次运行留下 `prompt.md`、`trace.jsonl`、`report.json`、`report.md`。
 - 可回看：网页历史从 `runs/` 目录派生，刷新/重启后仍在。
 
@@ -37,7 +37,7 @@
 | 配置层级与复现 | 是否支持默认/本地/本次覆盖，是否记录生效配置 | 四级合并 + `config.json` + `configHash` |
 | 表单/API 集成 | 前端怎么触发运行、怎么拿结果和轨迹 | `POST /api/inspect` + `/api/runs/:id/trace` |
 | 轨迹与可观测性 | 能否看到 prompt、模型响应、工具调用、观察 | `prompt.md` + `trace.jsonl` |
-| 离线测试与 Mock | 没有模型 Key 时能否跑测试 | `MockModel` + 45 个离线测试 |
+| 离线测试与 Mock | 没有模型 Key 时能否跑测试 | `MockModel` + 68 个离线测试 |
 | 技术栈匹配 | 与团队现有语言/部署/权限体系是否匹配 | Node 26 + TypeScript，单进程 |
 
 建议 POC 时用同一份制品、同一套五项检查，分别用“本沙盒”和候选框架实现，记录：接入时间、代码量、Skill 机制差异、可观测性、调试成本。可把结果写到 `docs/framework-evaluation.md`。

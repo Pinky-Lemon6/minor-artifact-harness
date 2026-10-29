@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { z } from "zod";
 import { sha256 } from "../util/hash.ts";
+import { resolveInside } from "../util/path.ts";
 import { readZip } from "../util/zip.ts";
 import type { Manifest, RunContext, ToolDefinition, ToolResult } from "../harness/types.ts";
 
@@ -44,13 +45,26 @@ export const openArtifactTool: ToolDefinition<{ source?: "fixture" | "upload"; f
     if (ctx.workspace) return error("workspace_already_open", "artifact is already open in this run");
 
     const source = args.source ?? ctx.inputs.artifactSource;
-    const fixture = args.fixture ?? ctx.inputs.fixture;
-    let zipPath: string;
+    if (source !== ctx.inputs.artifactSource) {
+      return error("source_mismatch", `source ${source} does not match this run`);
+    }
 
+    let zipPath: string;
     if (source === "fixture") {
-      if (!fixture) return error("missing_fixture", "fixture name is required");
-      zipPath = join(process.cwd(), "fixtures/build", `${fixture}.zip`);
+      const fixture = args.fixture ?? ctx.inputs.fixture;
+      if (!fixture || fixture === "." || fixture === ".." || !/^[A-Za-z0-9_-]+$/.test(fixture)) {
+        return error("invalid_fixture", `invalid fixture name: ${fixture ?? "(missing)"}`);
+      }
+      if (ctx.inputs.fixture && fixture !== ctx.inputs.fixture) {
+        return error("fixture_mismatch", `fixture ${fixture} does not match this run`);
+      }
+      const buildRoot = resolve(process.cwd(), "fixtures/build");
+      zipPath = resolve(buildRoot, `${fixture}.zip`);
+      if (!zipPath.startsWith(`${buildRoot}${sep}`)) {
+        return error("invalid_fixture", `fixture escapes fixtures/build: ${fixture}`);
+      }
     } else {
+      if (args.fixture) return error("fixture_not_allowed", "fixture is not allowed for an upload run");
       if (!ctx.inputs.uploadPath) return error("missing_upload", "uploadPath is required");
       zipPath = isAbsolute(ctx.inputs.uploadPath)
         ? ctx.inputs.uploadPath
@@ -58,6 +72,11 @@ export const openArtifactTool: ToolDefinition<{ source?: "fixture" | "upload"; f
     }
 
     if (!existsSync(zipPath)) return error("artifact_not_found", `artifact not found: ${zipPath}`);
+    const zipStat = statSync(zipPath);
+    if (!zipStat.isFile()) return error("artifact_not_file", `artifact is not a file: ${zipPath}`);
+    if (zipStat.size > 10 * 1024 * 1024) {
+      return error("artifact_too_large", `artifact exceeds 10 MB: ${zipStat.size}`);
+    }
 
     const bytes = readFileSync(zipPath);
     let entries;
@@ -68,11 +87,13 @@ export const openArtifactTool: ToolDefinition<{ source?: "fixture" | "upload"; f
       return error("invalid_zip", message);
     }
 
-    const workspace = join(ctx.runDir, "workspace");
+    const workspace = resolve(ctx.runDir, "workspace");
     mkdirSync(workspace, { recursive: true });
     for (const entry of entries) {
-      const target = join(workspace, entry.path);
-      if (!target.startsWith(workspace)) {
+      let target: string;
+      try {
+        target = resolveInside(workspace, entry.path);
+      } catch {
         return error("path_traversal", `entry escapes workspace: ${entry.path}`);
       }
       mkdirSync(dirname(target), { recursive: true });

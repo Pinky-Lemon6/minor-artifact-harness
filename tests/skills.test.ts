@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadSkillCatalog, loadSkill, parseSkillFile } from "../src/skills/loader.ts";
@@ -56,6 +56,29 @@ test("skill.read blocks traversal outside the skill directory", async () => {
     { name: "minor-artifact-check", path: "../../secret.txt" },
     ctx,
   );
+  assert.equal(result.ok, false);
+  assert.equal(result.error?.code, "path_traversal");
+});
+
+test("loadSkill rejects traversal names", () => {
+  assert.throws(() => loadSkill("../../../evil", ["skills"]), /invalid skill name/);
+});
+
+test("skill.read rejects a symlink escaping the skill directory", async () => {
+  const base = await mkdtemp(join(tmpdir(), "mah-skillbase-"));
+  const dir = join(base, "evil");
+  await mkdir(dir);
+  await writeFile(
+    join(dir, "SKILL.md"),
+    "---\nname: evil\ndescription: x\nversion: 1\ntools: []\n---\nbody",
+  );
+  const outside = join(base, "outside.txt");
+  await writeFile(outside, "secret");
+  await symlink(outside, join(dir, "link.txt"));
+
+  const ctx = await skillCtx({ selection: "preload" });
+  ctx.loadedSkills.set("evil", loadSkill("evil", [base]));
+  const result = await skillReadTool.execute({ name: "evil", path: "link.txt" }, ctx);
   assert.equal(result.ok, false);
   assert.equal(result.error?.code, "path_traversal");
 });

@@ -82,3 +82,125 @@ test("POST /api/inspect accepts an uploaded artifact in agent mode", async () =>
     await close();
   }
 });
+
+test("per-run overrides are whitelisted, validated, and not persisted", async () => {
+  const { baseUrl, close } = await startTestServer();
+  try {
+    const invalidReport = await fetch(`${baseUrl}/api/inspect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fixture: "good",
+        declaredVersion: "1.5.0",
+        previousVersion: "1.4.2",
+        overrides: { report: { template: "/etc/hostname" } },
+      }),
+    });
+    assert.equal(invalidReport.status, 400);
+
+    const invalidBumps = await fetch(`${baseUrl}/api/inspect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fixture: "good",
+        declaredVersion: "1.5.0",
+        previousVersion: "1.4.2",
+        overrides: { checks: { allowedBumps: "minor" } },
+      }),
+    });
+    assert.equal(invalidBumps.status, 400);
+
+    const valid = await fetch(`${baseUrl}/api/inspect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fixture: "good",
+        declaredVersion: "1.5.0",
+        previousVersion: "1.4.2",
+        overrides: { harness: { maxSteps: 2 } },
+      }),
+    });
+    assert.equal(valid.status, 200);
+    assert.equal((await valid.json()).status, "warn");
+
+    const config = await (await fetch(`${baseUrl}/api/config`)).json();
+    assert.equal(config.config.harness.maxSteps, 16);
+  } finally {
+    await close();
+  }
+});
+
+test("an unreadable upload is a run-level error, and missing previous version is a check failure", async () => {
+  const { baseUrl, close } = await startTestServer();
+  try {
+    const badZip = await fetch(`${baseUrl}/api/inspect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        artifactBase64: Buffer.from("not a zip").toString("base64"),
+        artifactFilename: "broken.zip",
+        declaredVersion: "1.5.0",
+        previousVersion: "1.4.2",
+      }),
+    });
+    assert.equal(badZip.status, 200);
+    assert.equal((await badZip.json()).status, "error");
+
+    const badZipFixed = await fetch(`${baseUrl}/api/inspect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        artifactBase64: Buffer.from("not a zip").toString("base64"),
+        artifactFilename: "broken.zip",
+        declaredVersion: "1.5.0",
+        previousVersion: "1.4.2",
+        mode: "fixed",
+      }),
+    });
+    assert.equal(badZipFixed.status, 200);
+    assert.equal((await badZipFixed.json()).status, "error");
+
+    const noPrevious = await fetch(`${baseUrl}/api/inspect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fixture: "good", declaredVersion: "1.5.0" }),
+    });
+    assert.equal(noPrevious.status, 200);
+    assert.equal((await noPrevious.json()).status, "fail");
+  } finally {
+    await close();
+  }
+});
+
+test("static file traversal is rejected", async () => {
+  const { baseUrl, close } = await startTestServer();
+  try {
+    const response = await fetch(`${baseUrl}/..%2F..%2Fetc/passwd`);
+    assert.ok([400, 404].includes(response.status), `unexpected status ${response.status}`);
+  } finally {
+    await close();
+  }
+});
+
+test("preload selection runs the preloaded plan without skill.load", async () => {
+  const { baseUrl, close } = await startTestServer();
+  try {
+    const response = await fetch(`${baseUrl}/api/inspect`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        fixture: "good",
+        declaredVersion: "1.5.0",
+        previousVersion: "1.4.2",
+        skillSelection: "preload",
+      }),
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.status, "pass");
+    const trace = await (await fetch(`${baseUrl}/api/runs/${body.runId}/trace`)).text();
+    assert.doesNotMatch(trace, /"tool":"skill\.load"/);
+  } finally {
+    await close();
+  }
+});

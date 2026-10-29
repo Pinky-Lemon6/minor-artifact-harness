@@ -318,6 +318,7 @@ harness:
   activeSkills: [minor-artifact-check]
   skillSelection: auto        # auto | preload
   toolAllowlist: []           # 空表示不额外限制；非空时必须包含所有必检工具，并与 Skill 工具集取交集
+  enforceRequiredChecks: true # 关闭仅用于 demo；正式检测必须为 true
 
 model:
   adapter: mock               # mock | openai-compat
@@ -349,6 +350,7 @@ checks:
   allowedBumps: [minor, patch]
   changelogFile: CHANGELOG.md
   allowExtraFiles: false
+  checkFilenameVersion: true
 
 report:
   outputDir: runs
