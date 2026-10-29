@@ -21,6 +21,7 @@ test("mock model resolves placeholders and the loop records a full trace", async
   const registry = new ToolRegistry();
   registry.register(demoEchoTool);
   const config = structuredClone(defaultConfig);
+  config.harness.activeSkills = [];
   config.harness.maxSteps = 5;
   const model = new MockModel(loadMockPlan(planPath, baseInputs()));
   const ctx = await createRunContext({ runId: "r1", runDir, inputs: baseInputs(), config, model, registry });
@@ -41,6 +42,7 @@ test("maxSteps writes a warn, incomplete report", async () => {
   const registry = new ToolRegistry();
   registry.register(demoEchoTool);
   const config = structuredClone(defaultConfig);
+  config.harness.activeSkills = [];
   config.harness.maxSteps = 1;
   const model = new MockModel([
     { type: "tool_call", tool: "demo.echo", args: { text: "one" } },
@@ -58,11 +60,13 @@ test("plan exhaustion becomes an error report", async () => {
   const runDir = await mkdtemp(join(tmpdir(), "mah-run-"));
   const registry = new ToolRegistry();
   registry.register(demoEchoTool);
+  const config = structuredClone(defaultConfig);
+  config.harness.activeSkills = [];
   const ctx = await createRunContext({
     runId: "r3",
     runDir,
     inputs: baseInputs(),
-    config: structuredClone(defaultConfig),
+    config,
     model: new MockModel([]),
     registry,
   });

@@ -2,10 +2,12 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { ensureFixtures } from "../../fixtures/make-fixtures.ts";
+import { validatePolicy } from "../config/policy.ts";
 import type { HarnessConfig } from "../config/schema.ts";
 import { MockModel, loadMockPlan } from "../models/mock.ts";
 import { createRegistry } from "../tools/index.ts";
 import { createRunContext } from "./context.ts";
+import { runFixed } from "./flow.ts";
 import { runAgent } from "./loop.ts";
 import type { RunInputs, RunResult } from "./types.ts";
 
@@ -23,7 +25,9 @@ export async function executeRun(opts: {
   cwd?: string;
 }): Promise<RunResult> {
   const cwd = opts.cwd ?? process.cwd();
-  const { inputs, config } = opts;
+  const config = structuredClone(opts.config);
+  config.flow.mode = opts.inputs.mode;
+  const { inputs } = opts;
 
   if (!inputs.declaredVersion) throw new Error("declaredVersion is required");
   if (!inputs.previousVersion) throw new Error("previousVersion is required");
@@ -37,10 +41,15 @@ export async function executeRun(opts: {
   const runDir = resolve(cwd, config.report.outputDir, runId);
   mkdirSync(runDir, { recursive: true });
 
-  const model = new MockModel(loadMockPlan(resolve(cwd, config.model.mock.planFile), inputs));
   const registry = createRegistry();
   if (inputs.artifactSource === "fixture") ensureFixtures(cwd);
+  validatePolicy(config, new Set(registry.listNames()));
+
+  const model =
+    inputs.mode === "fixed"
+      ? new MockModel([])
+      : new MockModel(loadMockPlan(resolve(cwd, config.model.mock.planFile), inputs));
 
   const ctx = await createRunContext({ runId, runDir, inputs, config, model, registry });
-  return runAgent(ctx);
+  return inputs.mode === "fixed" ? runFixed(ctx) : runAgent(ctx);
 }

@@ -1,8 +1,30 @@
 import { MockPlanAssertionError, MockPlanExhaustedError } from "../models/mock.ts";
 import { ensureReport } from "../tools/report.ts";
 import { buildSystemPrompt, buildUserPrompt, writePrompt } from "./prompt.ts";
-import type { ChatMessage, RunContext, RunResult } from "./types.ts";
+import type { CheckId } from "../config/schema.ts";
+import type { ChatMessage, RunContext, RunResult, ToolResult } from "./types.ts";
 import { REQUIRED_CHECKS } from "./types.ts";
+
+function missingChecks(ctx: RunContext): CheckId[] {
+  return REQUIRED_CHECKS.filter((id) => !ctx.checkResults.has(id));
+}
+
+function canRun(ctx: RunContext, tool: string): boolean {
+  return ctx.activeToolNames.has(tool) && ctx.registry.get(tool) !== undefined;
+}
+
+async function runEnforcedTool(ctx: RunContext, tool: string, step: number): Promise<ToolResult> {
+  const started = Date.now();
+  const result = await ctx.registry.execute(tool, {}, ctx);
+  ctx.trace.write({
+    step,
+    type: "enforced",
+    tool,
+    result,
+    durationMs: Date.now() - started,
+  });
+  return result;
+}
 
 export async function runAgent(ctx: RunContext): Promise<RunResult> {
   const system = buildSystemPrompt(ctx);
@@ -19,6 +41,7 @@ export async function runAgent(ctx: RunContext): Promise<RunResult> {
   let incomplete = true;
   let reason: string | undefined;
   let step = 1;
+  const enforceChecks = ctx.config.harness.activeSkills.length > 0;
 
   for (; step <= ctx.config.harness.maxSteps; step += 1) {
     let response;
@@ -41,8 +64,15 @@ export async function runAgent(ctx: RunContext): Promise<RunResult> {
     ctx.trace.write({ step, type: "model", result: response });
 
     if (response.type === "final") {
+      const missing = missingChecks(ctx);
+      if (enforceChecks && missing.length > 0) {
+        const message = `missing required checks: ${missing.join(", ")}`;
+        ctx.trace.write({ step, type: "enforced", result: { message } });
+        messages.push({ role: "tool", tool: "harness", content: message });
+        continue;
+      }
       final = response.content;
-      incomplete = !REQUIRED_CHECKS.every((id) => ctx.checkResults.has(id));
+      incomplete = missingChecks(ctx).length > 0;
       break;
     }
 
@@ -66,9 +96,24 @@ export async function runAgent(ctx: RunContext): Promise<RunResult> {
     });
   }
 
-  if (step > ctx.config.harness.maxSteps) {
+  if (step > ctx.config.harness.maxSteps && reason === undefined) {
     reason = "max_steps";
     incomplete = true;
+
+    if (enforceChecks) {
+      if (!ctx.manifest && canRun(ctx, "artifact.manifest")) {
+        await runEnforcedTool(ctx, "artifact.manifest", step);
+      }
+
+      for (const id of missingChecks(ctx)) {
+        const tool = `checks.${id}`;
+        if (!canRun(ctx, tool)) {
+          reason = "required_check_unavailable";
+          break;
+        }
+        await runEnforcedTool(ctx, tool, step);
+      }
+    }
   }
 
   const fallback = !ctx.reportWritten;
