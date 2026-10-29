@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ToolRegistry } from "../src/tools/registry.ts";
@@ -35,6 +36,7 @@ test("mock model resolves placeholders and the loop records a full trace", async
   assert.match(trace, /"type":"tool_call"/);
   assert.match(trace, /"type":"observation"/);
   assert.match(await readFile(join(runDir, "prompt.md"), "utf8"), /demo\.echo/);
+  assert.ok(existsSync(join(runDir, "config.json")));
 });
 
 test("maxSteps writes a warn, incomplete report", async () => {

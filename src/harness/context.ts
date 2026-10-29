@@ -1,4 +1,5 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { HarnessConfig } from "../config/schema.ts";
 import { loadSkill } from "../skills/loader.ts";
 import type { ToolRegistry } from "../tools/registry.ts";
@@ -14,6 +15,7 @@ export async function createRunContext(opts: {
   registry: ToolRegistry;
 }): Promise<RunContext> {
   mkdirSync(opts.runDir, { recursive: true });
+  writeFileSync(join(opts.runDir, "config.json"), `${JSON.stringify(opts.config, null, 2)}\n`, "utf8");
 
   const activeToolNames = new Set<string>();
   const loadedSkills = new Map<string, LoadedSkill>();
