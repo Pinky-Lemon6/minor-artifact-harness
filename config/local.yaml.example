@@ -1,0 +1,52 @@
+# Copy this file to config/local.yaml for personal overrides.
+# config/local.yaml is gitignored. Arrays replace, they do not merge.
+#
+# harness:
+#   maxSteps: 16
+#   skillDirs: [skills]
+#   activeSkills: [minor-artifact-check]
+#   skillSelection: auto
+#   toolAllowlist: []
+#
+# model:
+#   adapter: mock
+#   mock:
+#     planFile: fixtures/plans/agent-full-check.json
+#   openaiCompat:
+#     baseUrl: https://api.example.com/v1
+#     apiKeyEnv: OPENAI_API_KEY
+#     model: your-model
+#     temperature: 0
+#
+# flow:
+#   mode: agent
+#   stages:
+#     - tool: artifact.open
+#     - tool: artifact.manifest
+#     - tool: checks.version
+#     - tool: checks.required_files
+#     - tool: checks.integrity
+#     - tool: checks.forbidden
+#     - tool: checks.changelog
+#     - tool: report.write
+#
+# checks:
+#   requiredFiles: [manifest.json, README.md, LICENSE, CHANGELOG.md]
+#   forbiddenPatterns: ["*.env", "*.pem", "*.key", "id_rsa*"]
+#   scanContent: false
+#   contentScanSeverity: warn
+#   allowedBumps: [minor, patch]
+#   changelogFile: CHANGELOG.md
+#   allowExtraFiles: false
+#
+# report:
+#   outputDir: runs
+#   formats: [json, markdown]
+#   template: skills/minor-artifact-check/assets/report-template.md
+#
+# runs:
+#   retainArtifacts: true
+#
+# server:
+#   host: 127.0.0.1
+#   port: 4317
