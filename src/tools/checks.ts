@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
+import { minimatch } from "minimatch";
 import { diff, valid } from "semver";
 import { z } from "zod";
 import type { CheckStatus } from "../config/schema.ts";
@@ -283,6 +284,145 @@ export const checkIntegrityTool: ToolDefinition<Record<string, never>> = {
   schema: z.object({}),
   execute: async (_args, ctx: RunContext): Promise<ToolResult> => {
     const result = await checkIntegrity(ctx);
+    ctx.checkResults.set(result.id, result);
+    return { ok: true, summary: result.summary, data: result };
+  },
+};
+
+const CONTENT_PATTERNS: { name: string; regex: RegExp }[] = [
+  { name: "private_key", regex: /-----BEGIN [A-Z ]*PRIVATE KEY-----/ },
+  { name: "aws_access_key", regex: /AKIA[0-9A-Z]{16}/ },
+];
+
+export async function checkForbidden(ctx: RunContext): Promise<CheckResult> {
+  if (!ctx.workspace) {
+    return {
+      id: "forbidden",
+      title: "禁用文件",
+      status: "fail",
+      required: true,
+      summary: "artifact workspace is not open",
+      evidence: { reason: "workspace missing" },
+    };
+  }
+
+  const files = walkFiles(ctx.workspace);
+  const pathHits: { path: string; pattern: string }[] = [];
+  for (const file of files) {
+    for (const pattern of ctx.config.checks.forbiddenPatterns) {
+      if (minimatch(file, pattern, { dot: true, matchBase: true })) {
+        pathHits.push({ path: file, pattern });
+      }
+    }
+  }
+
+  const contentHits: { path: string; pattern: string }[] = [];
+  if (ctx.config.checks.scanContent) {
+    for (const file of files) {
+      const full = join(ctx.workspace, file);
+      if (statSync(full).size > 1024 * 1024) continue;
+      const text = readFileSync(full, "utf8");
+      for (const { name, regex } of CONTENT_PATTERNS) {
+        if (regex.test(text)) contentHits.push({ path: file, pattern: name });
+      }
+    }
+  }
+
+  const contentStatus: CheckStatus = contentHits.length
+    ? ctx.config.checks.contentScanSeverity
+    : "pass";
+  const status = worstStatus([
+    { status: pathHits.length ? "fail" : "pass", detail: "path patterns" },
+    { status: contentStatus, detail: "content patterns" },
+  ]);
+
+  const parts: string[] = [];
+  if (pathHits.length) {
+    parts.push(`forbidden files: ${[...new Set(pathHits.map((hit) => hit.path))].join(", ")}`);
+  }
+  if (contentHits.length) {
+    parts.push(
+      `content scan hits: ${[...new Set(contentHits.map((hit) => hit.path))].join(", ")}`,
+    );
+  }
+
+  return {
+    id: "forbidden",
+    title: "禁用文件",
+    status,
+    required: true,
+    summary: parts.length ? `forbidden ${status}: ${parts.join("; ")}` : "no forbidden files or content hits",
+    evidence: {
+      pathHits,
+      contentHits,
+      patterns: ctx.config.checks.forbiddenPatterns,
+      scanContent: ctx.config.checks.scanContent,
+      contentScanSeverity: ctx.config.checks.contentScanSeverity,
+    },
+  };
+}
+
+export const checkForbiddenTool: ToolDefinition<Record<string, never>> = {
+  name: "checks.forbidden",
+  description: "Check forbidden file patterns and optionally scan text content for private keys and cloud access keys.",
+  parameters: { type: "object", properties: {} },
+  schema: z.object({}),
+  execute: async (_args, ctx: RunContext): Promise<ToolResult> => {
+    const result = await checkForbidden(ctx);
+    ctx.checkResults.set(result.id, result);
+    return { ok: true, summary: result.summary, data: result };
+  },
+};
+
+export async function checkChangelog(ctx: RunContext): Promise<CheckResult> {
+  const version = ctx.inputs.declaredVersion;
+  if (!ctx.workspace) {
+    return {
+      id: "changelog",
+      title: "变更记录",
+      status: "fail",
+      required: true,
+      summary: "artifact workspace is not open",
+      evidence: { reason: "workspace missing" },
+    };
+  }
+
+  const file = ctx.config.checks.changelogFile;
+  const full = join(ctx.workspace, file);
+  if (!existsSync(full)) {
+    return {
+      id: "changelog",
+      title: "变更记录",
+      status: "fail",
+      required: true,
+      summary: `changelog not found: ${file}`,
+      evidence: { file, version, reason: "missing" },
+    };
+  }
+
+  const lines = readFileSync(full, "utf8").split(/\r?\n/);
+  const headings = lines.filter((line) => line.startsWith("#"));
+  const heading = headings.find((line) => line.includes(version));
+
+  return {
+    id: "changelog",
+    title: "变更记录",
+    status: heading ? "pass" : "fail",
+    required: true,
+    summary: heading
+      ? `changelog contains ${version}`
+      : `changelog has no heading for ${version}`,
+    evidence: { file, version, heading, headings: headings.slice(0, 20) },
+  };
+}
+
+export const checkChangelogTool: ToolDefinition<Record<string, never>> = {
+  name: "checks.changelog",
+  description: "Check that the changelog contains a heading for the declared version.",
+  parameters: { type: "object", properties: {} },
+  schema: z.object({}),
+  execute: async (_args, ctx: RunContext): Promise<ToolResult> => {
+    const result = await checkChangelog(ctx);
     ctx.checkResults.set(result.id, result);
     return { ok: true, summary: result.summary, data: result };
   },
