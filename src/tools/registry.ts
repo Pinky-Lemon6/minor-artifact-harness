@@ -20,6 +20,10 @@ export class ToolRegistry {
     return this.tools.get(name);
   }
 
+  listNames(): string[] {
+    return [...this.tools.keys()];
+  }
+
   descriptors(allowed: Set<string>): ToolDescriptor[] {
     return [...this.tools.values()]
       .filter((tool) => allowed.has(tool.name))
