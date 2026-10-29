@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ensureFixtures } from "../../fixtures/make-fixtures.ts";
 import { validatePolicy } from "../config/policy.ts";
-import type { HarnessConfig } from "../config/schema.ts";
+import { validateConfig, type HarnessConfig } from "../config/schema.ts";
 import { MockModel, loadMockPlan } from "../models/mock.ts";
 import { createRegistry } from "../tools/index.ts";
 import { createRunContext } from "./context.ts";
@@ -27,10 +27,10 @@ export async function executeRun(opts: {
   const cwd = opts.cwd ?? process.cwd();
   const config = structuredClone(opts.config);
   config.flow.mode = opts.inputs.mode;
+  validateConfig(config);
   const { inputs } = opts;
 
   if (!inputs.declaredVersion) throw new Error("declaredVersion is required");
-  if (!inputs.previousVersion) throw new Error("previousVersion is required");
   if (inputs.artifactSource === "fixture" && !inputs.fixture) throw new Error("fixture is required");
   if (inputs.artifactSource === "upload" && !inputs.uploadPath) throw new Error("uploadPath is required");
   if (config.model.adapter !== "mock") {
@@ -52,10 +52,16 @@ export async function executeRun(opts: {
   if (effectiveInputs.artifactSource === "fixture") ensureFixtures(cwd);
   validatePolicy(config, new Set(registry.listNames()));
 
+  const planFile =
+    effectiveInputs.skillSelection === "preload" &&
+    config.model.mock.planFile.endsWith("agent-full-check.json")
+      ? "fixtures/plans/agent-preloaded.json"
+      : config.model.mock.planFile;
+
   const model =
     effectiveInputs.mode === "fixed"
       ? new MockModel([])
-      : new MockModel(loadMockPlan(resolve(cwd, config.model.mock.planFile), effectiveInputs));
+      : new MockModel(loadMockPlan(resolve(cwd, planFile), effectiveInputs));
 
   const ctx = await createRunContext({
     runId,

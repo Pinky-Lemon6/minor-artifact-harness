@@ -16,3 +16,11 @@ test("missing version heading fails", async () => {
   await writeFile(join(ctx.workspace!, "CHANGELOG.md"), "## [1.4.0]\r\n");
   assert.equal((await checkChangelog(ctx)).status, "fail");
 });
+
+test("prerelease and longer versions do not satisfy the declared version heading", async () => {
+  const ctx = await checkCtx("good");
+  await writeFile(join(ctx.workspace!, "CHANGELOG.md"), "## [1.5.0-rc.1]\n");
+  assert.equal((await checkChangelog(ctx)).status, "fail");
+  await writeFile(join(ctx.workspace!, "CHANGELOG.md"), "## [11.5.0]\n");
+  assert.equal((await checkChangelog(ctx)).status, "fail");
+});

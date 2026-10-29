@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve, sep } from "node:path";
 import { z } from "zod";
 import type { Report, RunContext, ToolDefinition, ToolResult } from "../harness/types.ts";
 import { buildReport } from "../harness/report.ts";
@@ -43,22 +43,24 @@ export function renderMarkdown(report: Report, template: string): string {
   const artifact = report.artifact
     ? `${report.artifact.filename} (${report.artifact.sha256.slice(0, 12)}…)`
     : "(none)";
-  return template
-    .replaceAll("{{runId}}", report.runId)
-    .replaceAll("{{status}}", report.status)
-    .replaceAll("{{artifact}}", artifact)
-    .replaceAll("{{declaredVersion}}", report.versions.declared)
-    .replaceAll("{{previousVersion}}", report.versions.previous)
-    .replaceAll("{{checksTable}}", checksTable(report))
-    .replaceAll("{{evidence}}", evidenceBlock(report))
-    .replaceAll("{{generatedAt}}", report.finishedAt);
+  const values: Record<string, string> = {
+    runId: report.runId,
+    status: report.status,
+    artifact,
+    declaredVersion: report.versions.declared,
+    previousVersion: report.versions.previous,
+    checksTable: checksTable(report),
+    evidence: evidenceBlock(report),
+    generatedAt: report.finishedAt,
+  };
+  return template.replace(/\{\{(\w+)\}\}/g, (_match, key: string) => values[key] ?? `{{${key}}}`);
 }
 
 export async function ensureReport(
   ctx: RunContext,
   opts: { incomplete?: boolean; reason?: string; fallback?: boolean } = {},
 ): Promise<Report> {
-  if (ctx.reportWritten) {
+  if (ctx.reportWritten && opts.incomplete === undefined && opts.reason === undefined) {
     try {
       return JSON.parse(readFileSync(join(ctx.runDir, "report.json"), "utf8")) as Report;
     } catch {
@@ -67,11 +69,22 @@ export async function ensureReport(
   }
 
   const report = buildReport(ctx, opts);
-  writeFileSync(join(ctx.runDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  const formats = ctx.config.report.formats;
+  if (formats.includes("json")) {
+    writeFileSync(join(ctx.runDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  }
 
-  const templatePath = resolve(process.cwd(), ctx.config.report.template);
-  const template = existsSync(templatePath) ? readFileSync(templatePath, "utf8") : BUILTIN_TEMPLATE;
-  writeFileSync(join(ctx.runDir, "report.md"), renderMarkdown(report, template), "utf8");
+  const root = resolve(process.cwd());
+  const templatePath = resolve(root, ctx.config.report.template);
+  const usableTemplate =
+    templatePath !== root &&
+    templatePath.startsWith(`${root}${sep}`) &&
+    existsSync(templatePath) &&
+    statSync(templatePath).isFile();
+  const template = usableTemplate ? readFileSync(templatePath, "utf8") : BUILTIN_TEMPLATE;
+  if (formats.includes("markdown")) {
+    writeFileSync(join(ctx.runDir, "report.md"), renderMarkdown(report, template), "utf8");
+  }
 
   ctx.reportWritten = true;
   return report;

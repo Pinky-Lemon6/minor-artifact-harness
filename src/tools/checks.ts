@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { minimatch } from "minimatch";
-import { diff, valid } from "semver";
+import { diff, gt, valid } from "semver";
 import { z } from "zod";
 import type { CheckStatus } from "../config/schema.ts";
 import type { CheckResult, RunContext, ToolDefinition, ToolResult } from "../harness/types.ts";
 import { sha256 } from "../util/hash.ts";
+import { resolveInside } from "../util/path.ts";
 
 type SubCheck = { status: CheckStatus; detail: string };
 
@@ -69,7 +70,9 @@ export async function checkVersion(ctx: RunContext): Promise<CheckResult> {
 
   const filename = ctx.artifact?.filename ?? ctx.inputs.artifactFilename;
   const filenameMatch = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(filename);
-  if (!filenameMatch) {
+  if (!ctx.config.checks.checkFilenameVersion) {
+    evidence.filenameVersion = { status: "skip", detail: "filename version check disabled" };
+  } else if (!filenameMatch) {
     evidence.filenameVersion = { status: "skip", detail: `no version in filename ${filename}` };
   } else {
     evidence.filenameVersion =
@@ -87,6 +90,11 @@ export async function checkVersion(ctx: RunContext): Promise<CheckResult> {
     evidence.bump = { status: "fail", detail: `previousVersion is not valid semver: ${previous}` };
   } else if (!valid(declared)) {
     evidence.bump = { status: "fail", detail: `declaredVersion is not valid semver: ${declared}` };
+  } else if (gt(previous, declared)) {
+    evidence.bump = {
+      status: "fail",
+      detail: `version rollback: ${previous} -> ${declared} is older`,
+    };
   } else {
     const change = diff(previous, declared);
     evidence.bump =
@@ -138,9 +146,16 @@ export async function checkRequiredFiles(ctx: RunContext): Promise<CheckResult> 
 
   const present: string[] = [];
   const missing: string[] = [];
+  const unsafe: string[] = [];
   for (const file of ctx.config.checks.requiredFiles) {
-    if (existsSync(join(ctx.workspace, file))) present.push(file);
-    else missing.push(file);
+    try {
+      const full = resolveInside(ctx.workspace, file);
+      if (statSync(full).isFile()) present.push(file);
+      else missing.push(file);
+    } catch {
+      missing.push(file);
+      unsafe.push(file);
+    }
   }
 
   const status: CheckStatus = missing.length ? "fail" : "pass";
@@ -153,7 +168,7 @@ export async function checkRequiredFiles(ctx: RunContext): Promise<CheckResult> 
       status === "fail"
         ? `required files missing: ${missing.join(", ")}`
         : `all ${present.length} required files present`,
-    evidence: { present, missing },
+    evidence: { present, missing, unsafe },
   };
 }
 
@@ -224,12 +239,34 @@ export async function checkIntegrity(ctx: RunContext): Promise<CheckResult> {
     }
     listed.add(file.path);
 
-    const full = join(ctx.workspace, file.path);
-    if (!existsSync(full)) {
+    let full: string;
+    try {
+      full = resolveInside(ctx.workspace, file.path);
+    } catch {
+      problems.push({
+        path: file.path,
+        field: "path",
+        expected: "safe relative path",
+        actual: file.path,
+      });
+      continue;
+    }
+
+    let stat: ReturnType<typeof statSync>;
+    try {
+      stat = statSync(full);
+    } catch {
       missing.push(file.path);
       continue;
     }
-    const stat = statSync(full);
+    if (!stat.isFile()) {
+      problems.push({ path: file.path, field: "type", expected: "file", actual: "not a file" });
+      continue;
+    }
+    if (stat.size > 10 * 1024 * 1024) {
+      problems.push({ path: file.path, field: "size", expected: "<= 10 MB", actual: stat.size });
+      continue;
+    }
     if (stat.size !== file.size) {
       problems.push({ path: file.path, field: "size", expected: file.size, actual: stat.size });
     }
@@ -388,8 +425,20 @@ export async function checkChangelog(ctx: RunContext): Promise<CheckResult> {
   }
 
   const file = ctx.config.checks.changelogFile;
-  const full = join(ctx.workspace, file);
-  if (!existsSync(full)) {
+  let full: string;
+  try {
+    full = resolveInside(ctx.workspace, file);
+  } catch {
+    return {
+      id: "changelog",
+      title: "变更记录",
+      status: "fail",
+      required: true,
+      summary: `invalid changelog path: ${file}`,
+      evidence: { file, version, reason: "unsafe path" },
+    };
+  }
+  if (!existsSync(full) || !statSync(full).isFile()) {
     return {
       id: "changelog",
       title: "变更记录",
@@ -402,7 +451,9 @@ export async function checkChangelog(ctx: RunContext): Promise<CheckResult> {
 
   const lines = readFileSync(full, "utf8").split(/\r?\n/);
   const headings = lines.filter((line) => line.startsWith("#"));
-  const heading = headings.find((line) => line.includes(version));
+  const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const versionRe = new RegExp(`(^|[^0-9A-Za-z.-])${escaped}(?![0-9A-Za-z.-])`);
+  const heading = headings.find((line) => versionRe.test(line));
 
   return {
     id: "changelog",

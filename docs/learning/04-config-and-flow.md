@@ -39,7 +39,8 @@
 - 工具参数只承载运行输入（制品来源、版本），不承载策略；
 - 必填文件、禁用模式、允许的版本变化、内容扫描等都从 `ctx.config` 读取；
 - `harness.toolAllowlist` 非空时，必须包含所有必检工具，否则配置非法；
-- Skill 的 `tools` 与 allowlist 取交集。
+- Skill 的 `tools` 与 allowlist 取交集；
+- `enforceRequiredChecks` 默认 true，只有 demo 关闭；`checkFilenameVersion` 控制文件名版本子项。
 
 这样“改配置不改代码”的演示才成立，Agent 也不能通过传参把检查改松。
 

@@ -23,6 +23,7 @@ test("mock model resolves placeholders and the loop records a full trace", async
   registry.register(demoEchoTool);
   const config = structuredClone(defaultConfig);
   config.harness.activeSkills = [];
+  config.harness.enforceRequiredChecks = false;
   config.harness.maxSteps = 5;
   const model = new MockModel(loadMockPlan(planPath, baseInputs()));
   const ctx = await createRunContext({ runId: "r1", runDir, inputs: baseInputs(), config, model, registry });
@@ -45,6 +46,7 @@ test("maxSteps writes a warn, incomplete report", async () => {
   registry.register(demoEchoTool);
   const config = structuredClone(defaultConfig);
   config.harness.activeSkills = [];
+  config.harness.enforceRequiredChecks = false;
   config.harness.maxSteps = 1;
   const model = new MockModel([
     { type: "tool_call", tool: "demo.echo", args: { text: "one" } },
@@ -64,6 +66,7 @@ test("plan exhaustion becomes an error report", async () => {
   registry.register(demoEchoTool);
   const config = structuredClone(defaultConfig);
   config.harness.activeSkills = [];
+  config.harness.enforceRequiredChecks = false;
   const ctx = await createRunContext({
     runId: "r3",
     runDir,
@@ -75,4 +78,27 @@ test("plan exhaustion becomes an error report", async () => {
   const result = await runAgent(ctx);
   assert.equal(result.status, "error");
   assert.equal(result.report.reason, "mock_plan_exhausted");
+});
+
+test("a mock plan assertion failure becomes an error report", async () => {
+  const runDir = await mkdtemp(join(tmpdir(), "mah-run-"));
+  const registry = new ToolRegistry();
+  registry.register(demoEchoTool);
+  const config = structuredClone(defaultConfig);
+  config.harness.activeSkills = [];
+  config.harness.enforceRequiredChecks = false;
+  const model = new MockModel([
+    {
+      type: "tool_call",
+      tool: "demo.echo",
+      args: { text: "one" },
+      expect: { contains: "not present" },
+    },
+    { type: "final", content: "done" },
+  ]);
+  const ctx = await createRunContext({ runId: "r4", runDir, inputs: baseInputs(), config, model, registry });
+  ctx.activeToolNames.add("demo.echo");
+  const result = await runAgent(ctx);
+  assert.equal(result.status, "error");
+  assert.equal(result.report.reason, "plan_assertion_failed");
 });

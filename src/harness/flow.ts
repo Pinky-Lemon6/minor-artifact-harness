@@ -1,6 +1,7 @@
 import { validatePolicy } from "../config/policy.ts";
 import { ensureReport } from "../tools/report.ts";
 import type { RunContext, RunResult } from "./types.ts";
+import { REQUIRED_CHECKS } from "./types.ts";
 
 export async function runFixed(ctx: RunContext): Promise<RunResult> {
   validatePolicy(ctx.config, new Set(ctx.registry.listNames()));
@@ -17,7 +18,9 @@ export async function runFixed(ctx: RunContext): Promise<RunResult> {
   }
 
   const fallback = !ctx.reportWritten;
-  const report = await ensureReport(ctx, { incomplete: false, fallback });
+  const incomplete = !REQUIRED_CHECKS.every((id) => ctx.checkResults.has(id));
+  const reason = !ctx.artifact ? "artifact_unreadable" : undefined;
+  const report = await ensureReport(ctx, { incomplete, reason, fallback });
   if (fallback) {
     ctx.trace.write({ step: step + 1, type: "enforced", result: { report: "fallback" } });
   }

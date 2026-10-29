@@ -1,8 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ensureReport } from "../src/tools/report.ts";
+import { ensureReport, renderMarkdown } from "../src/tools/report.ts";
 import {
   checkVersion,
   checkRequiredFiles,
@@ -45,4 +46,21 @@ test("missing required checks produce a warn, incomplete report", async () => {
   const report = await ensureReport(ctx);
   assert.equal(report.status, "warn");
   assert.equal(report.incomplete, true);
+});
+
+test("report.formats controls which files are written", async () => {
+  const ctx = await fullCtx("good");
+  ctx.config.report.formats = ["markdown"];
+  await ensureReport(ctx);
+  assert.equal(existsSync(join(ctx.runDir, "report.md")), true);
+  assert.equal(existsSync(join(ctx.runDir, "report.json")), false);
+});
+
+test("template replacement does not interpret dollar patterns", async () => {
+  const report = await ensureReport(await fullCtx("good"));
+  const rendered = renderMarkdown(
+    { ...report, versions: { ...report.versions, declared: "$&" } },
+    "{{declaredVersion}}",
+  );
+  assert.equal(rendered, "$&");
 });

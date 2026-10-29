@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { z } from "zod";
 import type { RunContext, ToolDefinition, ToolResult } from "../harness/types.ts";
@@ -97,6 +97,15 @@ export const skillReadTool: ToolDefinition<{ name: string; path: string }> = {
         ok: false,
         summary: `skill file not found: ${args.path}`,
         error: { code: "file_not_found", message: args.path },
+      };
+    }
+    const realDir = realpathSync(skill.dir);
+    const realFull = realpathSync(full);
+    if (realFull !== realDir && !realFull.startsWith(`${realDir}${sep}`)) {
+      return {
+        ok: false,
+        summary: `path traversal: ${args.path}`,
+        error: { code: "path_traversal", message: args.path },
       };
     }
     if (statSync(full).size > 100 * 1024) {

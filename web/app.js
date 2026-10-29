@@ -75,7 +75,7 @@
     },
   };
 
-  const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+  const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
   const DEFAULT_RUN_NOTE = "五项检查始终执行，不提供整体开关。";
   const BUSY_RUN_NOTE = "正在执行检测，请保持页面打开。";
 
@@ -146,6 +146,7 @@
   const configRequiredFiles = $("config-required-files");
   const configForbiddenPatterns = $("config-forbidden-patterns");
   const configScanContent = $("config-scan-content");
+  const configFilenameVersion = $("config-filename-version");
   const configStatus = $("config-status");
   const configPreview = $("config-preview");
   const applyConfig = $("apply-config");
@@ -1038,6 +1039,9 @@
     if (typeof checks.scanContent === "boolean") {
       configScanContent.checked = checks.scanContent;
     }
+    if (typeof checks.checkFilenameVersion === "boolean") {
+      configFilenameVersion.checked = checks.checkFilenameVersion;
+    }
     if (harness.skillSelection === "auto" || harness.skillSelection === "preload") {
       skillSelect.value = harness.skillSelection;
     }
@@ -1110,6 +1114,7 @@
           : "无",
       ],
       ["内容扫描", overrides.checks.scanContent ? "开" : "关"],
+      ["文件名版本", overrides.checks.checkFilenameVersion ? "开" : "关"],
     ];
     for (const [label, value] of chips) {
       configPreview.append(el("span", "preview-chip", `${label} ${value}`));
@@ -1138,6 +1143,7 @@
         forbiddenPatterns,
         allowedBumps,
         scanContent: configScanContent.checked,
+        checkFilenameVersion: configFilenameVersion.checked,
       },
     };
     state.overrides = overrides;

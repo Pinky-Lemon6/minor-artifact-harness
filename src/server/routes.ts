@@ -3,6 +3,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { extname, join, resolve, sep } from "node:path";
+import { z } from "zod";
 import { mergeConfig, type ConfigOverride, type HarnessConfig } from "../config/schema.ts";
 import { executeRun } from "../harness/execute.ts";
 import type { RunInputs } from "../harness/types.ts";
@@ -10,7 +11,29 @@ import { loadSkillCatalog } from "../skills/loader.ts";
 import { createRegistry } from "../tools/index.ts";
 import { assertRunId, listRuns, readRun } from "./runStore.ts";
 
-const MAX_BODY_BYTES = 12 * 1024 * 1024;
+const MAX_BODY_BYTES = 16 * 1024 * 1024;
+
+const overridesSchema = z
+  .object({
+    harness: z
+      .object({
+        maxSteps: z.number().int().min(1).max(100),
+      })
+      .strict()
+      .optional(),
+    checks: z
+      .object({
+        requiredFiles: z.array(z.string()),
+        forbiddenPatterns: z.array(z.string()),
+        allowedBumps: z.array(z.enum(["major", "minor", "patch"])),
+        scanContent: z.boolean(),
+        checkFilenameVersion: z.boolean(),
+      })
+      .partial()
+      .strict()
+      .optional(),
+  })
+  .strict();
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -68,8 +91,8 @@ async function inspect(req: IncomingMessage, res: ServerResponse, ctx: { config:
   const payload = await readJson(req);
   const declaredVersion = typeof payload.declaredVersion === "string" ? payload.declaredVersion : "";
   const previousVersion = typeof payload.previousVersion === "string" ? payload.previousVersion : "";
-  if (!declaredVersion || !previousVersion) {
-    throw new HttpError(400, "declaredVersion and previousVersion are required");
+  if (!declaredVersion) {
+    throw new HttpError(400, "declaredVersion is required");
   }
 
   const fixture = typeof payload.fixture === "string" ? payload.fixture : undefined;
@@ -84,10 +107,19 @@ async function inspect(req: IncomingMessage, res: ServerResponse, ctx: { config:
     writeFileSync(uploadPath, Buffer.from(artifactBase64, "base64"));
   }
 
-  const overrides =
-    payload.overrides && typeof payload.overrides === "object"
-      ? (payload.overrides as ConfigOverride)
-      : {};
+  let overrides: ConfigOverride = {};
+  if (payload.overrides !== undefined) {
+    const parsed = overridesSchema.safeParse(payload.overrides);
+    if (!parsed.success) {
+      throw new HttpError(
+        400,
+        parsed.error.issues
+          .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+          .join("; "),
+      );
+    }
+    overrides = parsed.data;
+  }
   const config = mergeConfig(ctx.config, overrides);
   const inputs: RunInputs = {
     artifactSource: uploadPath ? "upload" : "fixture",

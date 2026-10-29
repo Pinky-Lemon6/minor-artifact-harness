@@ -41,7 +41,7 @@ export async function runAgent(ctx: RunContext): Promise<RunResult> {
   let incomplete = true;
   let reason: string | undefined;
   let step = 1;
-  const enforceChecks = ctx.config.harness.activeSkills.length > 0;
+  const enforceChecks = ctx.config.harness.enforceRequiredChecks;
 
   for (; step <= ctx.config.harness.maxSteps; step += 1) {
     let response;
@@ -114,6 +114,11 @@ export async function runAgent(ctx: RunContext): Promise<RunResult> {
         await runEnforcedTool(ctx, tool, step);
       }
     }
+  }
+
+  if (enforceChecks && !ctx.artifact && (reason === undefined || reason === "max_steps")) {
+    reason = "artifact_unreadable";
+    incomplete = true;
   }
 
   const fallback = !ctx.reportWritten;

@@ -43,9 +43,16 @@ export function validatePolicy(config: HarnessConfig, registeredToolNames: Set<s
       const skill = loadSkill(name, config.harness.skillDirs);
       for (const tool of skill.tools) skillTools.add(tool);
     }
-    for (const tool of REQUIRED_TOOLS) {
+    for (const tool of ["artifact.open", "artifact.manifest", ...REQUIRED_TOOLS]) {
       if (!skillTools.has(tool)) {
         throw new Error(`skill misses required tool: ${tool}`);
+      }
+    }
+    if (allowlist.length > 0) {
+      for (const tool of ["skill.load", "skill.read", "artifact.open", "artifact.manifest", ...REQUIRED_TOOLS]) {
+        if (!allowlist.includes(tool)) {
+          throw new Error(`allowlist misses required tool: ${tool}`);
+        }
       }
     }
   }
