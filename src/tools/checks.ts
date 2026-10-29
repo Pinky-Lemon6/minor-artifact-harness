@@ -1,9 +1,10 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { diff, valid } from "semver";
 import { z } from "zod";
 import type { CheckStatus } from "../config/schema.ts";
 import type { CheckResult, RunContext, ToolDefinition, ToolResult } from "../harness/types.ts";
+import { sha256 } from "../util/hash.ts";
 
 type SubCheck = { status: CheckStatus; detail: string };
 
@@ -113,6 +114,175 @@ export const checkVersionTool: ToolDefinition<Record<string, never>> = {
   schema: z.object({}),
   execute: async (_args, ctx: RunContext): Promise<ToolResult> => {
     const result = await checkVersion(ctx);
+    ctx.checkResults.set(result.id, result);
+    return { ok: true, summary: result.summary, data: result };
+  },
+};
+
+function workspaceMissing(): CheckResult {
+  return {
+    id: "required_files",
+    title: "必填文件",
+    status: "fail",
+    required: true,
+    summary: "artifact workspace is not open",
+    evidence: { reason: "workspace missing" },
+  };
+}
+
+export async function checkRequiredFiles(ctx: RunContext): Promise<CheckResult> {
+  if (!ctx.workspace) {
+    return { ...workspaceMissing(), id: "required_files", title: "必填文件" };
+  }
+
+  const present: string[] = [];
+  const missing: string[] = [];
+  for (const file of ctx.config.checks.requiredFiles) {
+    if (existsSync(join(ctx.workspace, file))) present.push(file);
+    else missing.push(file);
+  }
+
+  const status: CheckStatus = missing.length ? "fail" : "pass";
+  return {
+    id: "required_files",
+    title: "必填文件",
+    status,
+    required: true,
+    summary:
+      status === "fail"
+        ? `required files missing: ${missing.join(", ")}`
+        : `all ${present.length} required files present`,
+    evidence: { present, missing },
+  };
+}
+
+export const checkRequiredFilesTool: ToolDefinition<Record<string, never>> = {
+  name: "checks.required_files",
+  description: "Check that every configured required file exists in the artifact.",
+  parameters: { type: "object", properties: {} },
+  schema: z.object({}),
+  execute: async (_args, ctx: RunContext): Promise<ToolResult> => {
+    const result = await checkRequiredFiles(ctx);
+    ctx.checkResults.set(result.id, result);
+    return { ok: true, summary: result.summary, data: result };
+  },
+};
+
+function walkFiles(root: string): string[] {
+  const files: string[] = [];
+  const visit = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) visit(full);
+      else if (entry.isFile()) files.push(relative(root, full).split(sep).join("/"));
+    }
+  };
+  visit(root);
+  return files.sort();
+}
+
+function isOsJunk(path: string): boolean {
+  const base = path.split("/").pop();
+  return base === ".DS_Store" || base === "Thumbs.db" || path.startsWith("__MACOSX/");
+}
+
+type IntegrityProblem = { path: string; field: string; expected: unknown; actual: unknown };
+
+export async function checkIntegrity(ctx: RunContext): Promise<CheckResult> {
+  if (!ctx.workspace) {
+    return {
+      id: "integrity",
+      title: "完整性",
+      status: "fail",
+      required: true,
+      summary: "artifact workspace is not open",
+      evidence: { reason: "workspace missing" },
+    };
+  }
+  if (!ctx.manifest) {
+    return {
+      id: "integrity",
+      title: "完整性",
+      status: "fail",
+      required: true,
+      summary: "manifest is not loaded",
+      evidence: { reason: "manifest missing" },
+    };
+  }
+
+  const actualFiles = walkFiles(ctx.workspace);
+  const listed = new Set<string>();
+  const missing: string[] = [];
+  const duplicatePaths: string[] = [];
+  const problems: IntegrityProblem[] = [];
+
+  for (const file of ctx.manifest.files) {
+    if (listed.has(file.path)) {
+      duplicatePaths.push(file.path);
+      continue;
+    }
+    listed.add(file.path);
+
+    const full = join(ctx.workspace, file.path);
+    if (!existsSync(full)) {
+      missing.push(file.path);
+      continue;
+    }
+    const stat = statSync(full);
+    if (stat.size !== file.size) {
+      problems.push({ path: file.path, field: "size", expected: file.size, actual: stat.size });
+    }
+    const actualHash = sha256(readFileSync(full));
+    if (actualHash !== file.sha256) {
+      problems.push({ path: file.path, field: "sha256", expected: file.sha256, actual: actualHash });
+    }
+  }
+
+  const extra = actualFiles.filter(
+    (path) => !listed.has(path) && path !== "manifest.json" && !isOsJunk(path),
+  );
+  const extraFails = extra.length > 0 && !ctx.config.checks.allowExtraFiles;
+
+  const parts: string[] = [];
+  if (missing.length) parts.push(`missing files: ${missing.join(", ")}`);
+  if (duplicatePaths.length) parts.push(`duplicate manifest paths: ${duplicatePaths.join(", ")}`);
+  if (problems.length) {
+    parts.push(
+      ...problems.map(
+        (problem) => `${problem.field} mismatch for ${problem.path}`,
+      ),
+    );
+  }
+  if (extra.length) parts.push(`extra files: ${extra.join(", ")}`);
+
+  let status: CheckStatus = "pass";
+  if (missing.length || duplicatePaths.length || problems.length || extraFails) status = "fail";
+  else if (extra.length) status = "warn";
+
+  return {
+    id: "integrity",
+    title: "完整性",
+    status,
+    required: true,
+    summary: status === "pass" ? "all manifest files match" : `integrity ${status}: ${parts.join("; ")}`,
+    evidence: {
+      checked: ctx.manifest.files.length,
+      missing,
+      duplicatePaths,
+      problems,
+      extra,
+      allowExtraFiles: ctx.config.checks.allowExtraFiles,
+    },
+  };
+}
+
+export const checkIntegrityTool: ToolDefinition<Record<string, never>> = {
+  name: "checks.integrity",
+  description: "Check file existence, sizes, SHA-256 hashes, and extra files against manifest.json.",
+  parameters: { type: "object", properties: {} },
+  schema: z.object({}),
+  execute: async (_args, ctx: RunContext): Promise<ToolResult> => {
+    const result = await checkIntegrity(ctx);
     ctx.checkResults.set(result.id, result);
     return { ok: true, summary: result.summary, data: result };
   },

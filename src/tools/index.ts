@@ -1,7 +1,7 @@
 import { ToolRegistry } from "./registry.ts";
 import { demoEchoTool } from "./demo.ts";
 import { openArtifactTool, readManifestTool } from "./artifact.ts";
-import { checkVersionTool } from "./checks.ts";
+import { checkVersionTool, checkRequiredFilesTool, checkIntegrityTool } from "./checks.ts";
 
 export function createRegistry(): ToolRegistry {
   const registry = new ToolRegistry();
@@ -9,5 +9,7 @@ export function createRegistry(): ToolRegistry {
   registry.register(openArtifactTool);
   registry.register(readManifestTool);
   registry.register(checkVersionTool);
+  registry.register(checkRequiredFilesTool);
+  registry.register(checkIntegrityTool);
   return registry;
 }
