@@ -1,5 +1,5 @@
 import { MockPlanAssertionError, MockPlanExhaustedError } from "../models/mock.ts";
-import { buildReport } from "./report.ts";
+import { ensureReport } from "../tools/report.ts";
 import { buildSystemPrompt, buildUserPrompt, writePrompt } from "./prompt.ts";
 import type { ChatMessage, RunContext, RunResult } from "./types.ts";
 import { REQUIRED_CHECKS } from "./types.ts";
@@ -71,7 +71,11 @@ export async function runAgent(ctx: RunContext): Promise<RunResult> {
     incomplete = true;
   }
 
-  const report = buildReport(ctx, { incomplete, reason });
+  const fallback = !ctx.reportWritten;
+  const report = await ensureReport(ctx, { incomplete, reason, fallback });
+  if (fallback) {
+    ctx.trace.write({ step, type: "enforced", result: { report: "fallback" } });
+  }
   ctx.trace.write({ step, type: "final", result: { final, status: report.status, reason } });
 
   return {
