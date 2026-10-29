@@ -1,0 +1,11 @@
+[
+  {
+    "type": "tool_call",
+    "tool": "demo.echo",
+    "args": { "text": "hello ${declaredVersion}" }
+  },
+  {
+    "type": "final",
+    "content": "done"
+  }
+]
