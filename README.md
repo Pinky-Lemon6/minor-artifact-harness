@@ -53,7 +53,7 @@ Node.js 26、TypeScript（原生类型擦除，无构建步骤）、`zod`、`yam
 
 ## 远程仓库
 
-https://github.com/lisy/minor-artifact-harness
+https://github.com/Pinky-Lemon6/minor-artifact-harness
 
 ## 说明
 

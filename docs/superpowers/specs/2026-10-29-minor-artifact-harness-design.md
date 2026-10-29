@@ -615,7 +615,7 @@ minor-artifact-harness/
 
 ## 13. GitHub 版本管理
 
-- 仓库：`lisy/minor-artifact-harness`，公开（已确认）。
+- 仓库：`Pinky-Lemon6/minor-artifact-harness`，公开（已确认）。
 - 初始化：`main` 分支，提交 M0 的 README、设计文档、`.gitignore`、CI。
 - 提交规范：Conventional Commits，例如 `feat(harness): add tool registry`、`test(checks): cover bad hash`、`docs(learning): add skill notes`。
 - 分支：每个里程碑一个 `feat/mN-...` 分支；能创建 PR 时走 PR 自查后合并，不能时本地合并后推送，保证 `main` 始终可运行。
@@ -654,7 +654,7 @@ minor-artifact-harness/
 
 ## 16. 已确认（2026-10-29）
 
-1. **GitHub**：`lisy/minor-artifact-harness`，公开。
+1. **GitHub**：`Pinky-Lemon6/minor-artifact-harness`，公开。
 2. **动手程度**：A —— 我实现代码并逐段讲解，你负责运行、做练习、提交。
 3. **检测场景**：先按五项检查做；拿到内部规则后替换工具和配置。
 

@@ -1499,7 +1499,7 @@ git commit -m "feat(web): add inspection form and trace viewer"
 - Modify: `README.md`
 
 **Interfaces:**
-- Produces: public repo `lisy/minor-artifact-harness`, green CI, at least one merged PR, tag `v0.1.0`.
+- Produces: public repo `Pinky-Lemon6/minor-artifact-harness`, green CI, at least one merged PR, tag `v0.1.0`.
 
 - [ ] **Step 1: Write the learning docs**
 
@@ -1525,10 +1525,10 @@ git commit -m "docs: add learning guides and retrospective"
 
 - [ ] **Step 4: Create the remote and push**
 
-Create a public repository `lisy/minor-artifact-harness` in the OpenChamber Git panel or on GitHub. Add the remote:
+Create a public repository `Pinky-Lemon6/minor-artifact-harness` in the OpenChamber Git panel or on GitHub. Add the remote:
 
 ```bash
-git remote add origin https://github.com/lisy/minor-artifact-harness.git
+git remote add origin https://github.com/Pinky-Lemon6/minor-artifact-harness.git
 git push -u origin main
 ```
 
