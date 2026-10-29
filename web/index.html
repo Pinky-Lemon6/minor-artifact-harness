@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f766e'/%3E%3Cpath d='M16 7l7 9-7 9-7-9z' fill='none' stroke='%23f3f5f2' stroke-width='1.6'/%3E%3Ccircle cx='16' cy='16' r='2' fill='%23f3f5f2'/%3E%3C/svg%3E"
+    />
+    <title>小版本制品检测 · Harness</title>
+    <meta
+      name="description"
+      content="本地小版本制品检测 Harness：上传 ZIP 或选择示例制品，查看五项检查、证据与完整运行轨迹。"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="backdrop" aria-hidden="true"></div>
+
+    <div class="page-shell">
+      <header class="masthead">
+        <div class="masthead-main">
+          <p class="eyebrow">
+            <span class="eyebrow-mark" aria-hidden="true"></span>
+            MINOR ARTIFACT HARNESS
+            <span class="eyebrow-slash" aria-hidden="true">/</span>
+            LOCAL INSPECTION
+          </p>
+          <h1>小版本制品检测</h1>
+          <p class="lede">
+            发布前的一张检测台：五项检查、一份可展开的证据，以及每一步都可以回看的运行轨迹。
+          </p>
+        </div>
+        <div class="masthead-side">
+          <div class="service-state">
+            <span class="service-dot" aria-hidden="true"></span>
+            <span>本地服务</span>
+            <span class="mono service-host" id="endpoint">127.0.0.1:4317</span>
+          </div>
+          <p class="masthead-note">
+            运行记录保存在本机 <span class="mono">runs/</span> 目录，刷新后仍可回看。
+          </p>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="card input-card" aria-labelledby="input-title" style="--delay: 60ms">
+          <div class="card-head">
+            <div>
+              <p class="section-kicker">01 / INPUT</p>
+              <h2 id="input-title">检测输入</h2>
+            </div>
+            <span class="head-note">5 项必检</span>
+          </div>
+
+          <form id="inspect-form" class="inspect-form" novalidate>
+            <fieldset class="field-group field-group-first">
+              <legend class="field-label">制品来源</legend>
+
+              <div class="source-tabs" role="group" aria-label="选择制品来源">
+                <button
+                  type="button"
+                  class="source-tab"
+                  data-source="upload"
+                  aria-pressed="false"
+                >
+                  上传 ZIP
+                </button>
+                <button
+                  type="button"
+                  class="source-tab"
+                  data-source="fixture"
+                  aria-pressed="true"
+                >
+                  示例制品
+                </button>
+              </div>
+
+              <div class="source-panel" id="upload-panel" hidden>
+                <label class="dropzone" for="artifact-file" id="dropzone">
+                  <input
+                    class="dropzone-input"
+                    type="file"
+                    id="artifact-file"
+                    name="artifact"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                  />
+                  <span class="dropzone-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                      <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" stroke-linecap="round" />
+                    </svg>
+                  </span>
+                  <span class="dropzone-title" id="file-name">选择或拖入 .zip 制品</span>
+                  <span class="dropzone-hint" id="file-meta">单文件，约 8 MB 以内</span>
+                </label>
+                <p class="field-error" id="artifact-error" hidden></p>
+              </div>
+
+              <div class="source-panel" id="fixture-panel">
+                <div class="select-wrap">
+                  <select id="fixture-select" name="fixture">
+                    <option value="good">good · 基准制品</option>
+                    <option value="bad-version">bad-version · 版本不一致</option>
+                    <option value="bad-hash">bad-hash · 哈希不符</option>
+                    <option value="forbidden">forbidden · 含禁用文件</option>
+                    <option value="missing-file">missing-file · 缺少必填文件</option>
+                  </select>
+                  <span class="select-caret" aria-hidden="true"></span>
+                </div>
+                <p class="field-hint" id="fixture-hint">
+                  基准制品：版本、文件、哈希与变更记录均一致。
+                </p>
+              </div>
+            </fieldset>
+
+            <div class="field-group">
+              <div class="field-row">
+                <label class="field" for="declared-version">
+                  <span class="field-label">声明版本</span>
+                  <input
+                    class="input mono"
+                    id="declared-version"
+                    name="declaredVersion"
+                    type="text"
+                    value="1.5.0"
+                    placeholder="1.5.0"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-describedby="version-hint declared-version-error"
+                  />
+                  <span class="field-error" id="declared-version-error" hidden></span>
+                </label>
+                <label class="field" for="previous-version">
+                  <span class="field-label">上一版本</span>
+                  <input
+                    class="input mono"
+                    id="previous-version"
+                    name="previousVersion"
+                    type="text"
+                    value="1.4.2"
+                    placeholder="1.4.2"
+                    autocomplete="off"
+                    spellcheck="false"
+                    aria-describedby="version-hint previous-version-error"
+                  />
+                  <span class="field-error" id="previous-version-error" hidden></span>
+                </label>
+              </div>
+              <p class="field-hint" id="version-hint">
+                用于核对 manifest、package.json 与文件名，并判断相对上一版本是 minor 还是 patch。
+              </p>
+            </div>
+
+            <div class="field-group">
+              <div class="field-row">
+                <label class="field" for="mode">
+                  <span class="field-label">运行模式</span>
+                  <div class="select-wrap">
+                    <select id="mode" name="mode">
+                      <option value="agent">Agent 自主检测</option>
+                      <option value="fixed">固定流程</option>
+                    </select>
+                    <span class="select-caret" aria-hidden="true"></span>
+                  </div>
+                </label>
+                <label class="field" for="skill-selection">
+                  <span class="field-label">Skill 选择</span>
+                  <div class="select-wrap">
+                    <select id="skill-selection" name="skillSelection">
+                      <option value="auto">按需加载</option>
+                      <option value="preload">预加载</option>
+                    </select>
+                    <span class="select-caret" aria-hidden="true"></span>
+                  </div>
+                </label>
+              </div>
+              <div class="skill-line" id="skill-catalog">
+                <span class="mini-dot" aria-hidden="true"></span>
+                <span>正在读取 Skill 目录…</span>
+              </div>
+            </div>
+
+            <div class="run-block">
+              <button class="run-button" id="run-button" type="submit">
+                <span class="button-label">开始检测</span>
+                <svg class="button-arrow" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                  <path d="M4 10h11m0 0-4.2-4.2M15 10l-4.2 4.2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span class="button-spinner" aria-hidden="true"></span>
+              </button>
+              <div class="run-foot">
+                <span id="run-note">五项检查始终执行，不提供整体开关。</span>
+                <span class="mono run-clock" id="run-clock" hidden>0.0s</span>
+              </div>
+            </div>
+          </form>
+        </section>
+
+        <div class="result-column">
+          <section
+            class="card result-card"
+            id="result-panel"
+            data-state="idle"
+            aria-labelledby="result-title"
+            style="--delay: 120ms"
+          >
+            <div class="card-head">
+              <div>
+                <p class="section-kicker">02 / REPORT</p>
+                <h2 id="result-title">检测结果</h2>
+              </div>
+              <span
+                class="status-badge"
+                id="status-badge"
+                data-status="idle"
+                role="status"
+                aria-live="polite"
+              >
+                <span class="status-dot" aria-hidden="true"></span>
+                <span class="status-text">待检测</span>
+              </span>
+            </div>
+
+            <div class="result-alert" id="result-alert" role="alert" hidden></div>
+
+            <div class="result-body">
+              <div class="empty-state" id="empty-state">
+                <div class="empty-visual" aria-hidden="true">
+                  <span class="empty-ring"></span>
+                  <span class="empty-cross empty-cross-h"></span>
+                  <span class="empty-cross empty-cross-v"></span>
+                  <span class="empty-core"></span>
+                </div>
+                <p class="empty-kicker">AWAITING ARTIFACT</p>
+                <h3>上传制品，或选一个示例</h3>
+                <p class="empty-copy">
+                  左侧选择 ZIP 或示例制品，填入版本号后开始检测。结果、逐项证据和轨迹会出现在这里。
+                </p>
+                <div class="empty-tags" aria-hidden="true">
+                  <span>版本一致性</span>
+                  <span>必填文件</span>
+                  <span>完整性</span>
+                  <span>禁用文件</span>
+                  <span>变更记录</span>
+                </div>
+              </div>
+
+              <div class="running-state" id="running-state" hidden>
+                <div class="scan-visual" aria-hidden="true">
+                  <span class="scan-track"></span>
+                  <span class="scan-line"></span>
+                </div>
+                <p class="running-kicker">INSPECTION IN PROGRESS</p>
+                <h3 id="running-title">正在执行五项检查</h3>
+                <p class="running-copy" id="running-label">
+                  读取 ZIP、核对 manifest、计算哈希并汇总报告。
+                </p>
+                <div class="running-meter">
+                  <span class="mono" id="running-elapsed">已用时 0.0s</span>
+                  <span>请保持页面打开</span>
+                </div>
+              </div>
+
+              <div class="error-state" id="error-state" hidden>
+                <div class="error-icon" aria-hidden="true">!</div>
+                <p class="error-kicker">HARNESS ERROR</p>
+                <h3>检测没有完成</h3>
+                <p class="error-message" id="error-message"></p>
+                <p class="error-hint" id="error-hint">请检查输入或服务端日志后重试。</p>
+              </div>
+
+              <div id="report-view" hidden>
+                <div class="verdict" id="verdict" data-status="pass">
+                  <div class="verdict-icon" id="verdict-icon" aria-hidden="true">✓</div>
+                  <div class="verdict-copy">
+                    <p class="verdict-eyebrow" id="verdict-eyebrow">INSPECTION PASSED</p>
+                    <h3 class="verdict-title" id="verdict-title">制品通过检测</h3>
+                    <p class="verdict-note" id="verdict-note"></p>
+                  </div>
+                </div>
+
+                <dl class="meta-grid" id="report-meta"></dl>
+
+                <div class="stat-grid" id="report-stats"></div>
+
+                <div class="artifact-strip" id="artifact-strip"></div>
+
+                <section class="checks-section" aria-labelledby="checks-title">
+                  <div class="subhead">
+                    <h3 id="checks-title">检查明细</h3>
+                    <span class="subhead-note">展开「证据」查看原始结果</span>
+                  </div>
+                  <div class="table-wrap">
+                    <table class="checks-table" id="checks-table">
+                      <caption class="sr-only">
+                        五项检查的状态、摘要与原始证据
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">检查项</th>
+                          <th scope="col">状态</th>
+                          <th scope="col">摘要</th>
+                          <th scope="col" class="align-right">证据</th>
+                        </tr>
+                      </thead>
+                      <tbody id="checks-body"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <div class="report-actions">
+                  <div class="report-links">
+                    <a class="ghost-button" id="report-json-link" href="#" download>
+                      JSON 报告
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M8 3v7m0 0 3-3M8 10 5 7M3 13h10" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </a>
+                    <a class="ghost-button" id="report-md-link" href="#" download>
+                      Markdown 报告
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path d="M8 3v7m0 0 3-3M8 10 5 7M3 13h10" stroke-linecap="round" stroke-linejoin="round" />
+                      </svg>
+                    </a>
+                  </div>
+                  <span class="config-hash-note" id="config-hash-note">配置指纹 —</span>
+                </div>
+              </div>
+            </div>
+
+            <section class="trace-section" aria-labelledby="trace-title">
+              <div class="trace-head">
+                <div>
+                  <p class="section-kicker">03 / TRACE</p>
+                  <h3 id="trace-title">运行轨迹</h3>
+                </div>
+                <div class="trace-head-right">
+                  <span class="trace-stale-note" id="trace-note" hidden></span>
+                  <span class="trace-count" id="trace-count">0 条记录</span>
+                </div>
+              </div>
+              <div class="trace-panel" id="trace-panel">
+                <div class="trace-empty">
+                  <span class="trace-empty-line" aria-hidden="true"></span>
+                  <p>运行后，Skill 加载、工具调用与观察结果会在这里逐条展开。</p>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section class="card runs-card" aria-labelledby="runs-title" style="--delay: 180ms">
+            <div class="card-head">
+              <div>
+                <p class="section-kicker">04 / HISTORY</p>
+                <h3 id="runs-title">最近运行</h3>
+              </div>
+              <div class="runs-head-right">
+                <span class="runs-count" id="runs-count">0 条</span>
+                <button class="icon-button" id="refresh-runs" type="button" aria-label="刷新运行历史" title="刷新运行历史">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path d="M16 10a6 6 0 1 1-1.8-4.3M16 4v4h-4" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="runs-list" id="runs-list">
+              <p class="runs-empty">还没有运行记录。</p>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <details class="card config-panel" id="config-panel" style="--delay: 240ms">
+        <summary>
+          <span class="config-summary-main">
+            <span class="config-toggle" aria-hidden="true"></span>
+            <span>
+              <span class="section-kicker">05 / OVERRIDES</span>
+              <span class="config-title">流程配置覆盖</span>
+              <span class="config-sub">只影响下一次检测，不写入配置文件。</span>
+            </span>
+          </span>
+          <span class="config-state" id="config-state" data-applied="false">未应用</span>
+        </summary>
+
+        <div class="config-body">
+          <div class="config-grid">
+            <label class="field" for="config-max-steps">
+              <span class="field-label">最大步数</span>
+              <input
+                class="input mono"
+                id="config-max-steps"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                value="16"
+                inputmode="numeric"
+                aria-label="最大步数"
+              />
+              <span class="field-hint">Agent 循环的上限，1–100 步。</span>
+            </label>
+
+            <div class="field">
+              <span class="field-label" id="config-bumps-label">允许的版本变化</span>
+              <div class="bump-options" role="group" aria-labelledby="config-bumps-label">
+                <label class="check-chip">
+                  <input type="checkbox" name="allowedBumps" value="patch" checked />
+                  <span>patch</span>
+                </label>
+                <label class="check-chip">
+                  <input type="checkbox" name="allowedBumps" value="minor" checked />
+                  <span>minor</span>
+                </label>
+                <label class="check-chip">
+                  <input type="checkbox" name="allowedBumps" value="major" />
+                  <span>major</span>
+                </label>
+              </div>
+              <span class="field-hint">勾选本次允许通过的版本幅度。</span>
+            </div>
+
+            <label class="field config-wide" for="config-required-files">
+              <span class="field-label">必填文件</span>
+              <input
+                class="input mono"
+                id="config-required-files"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="必填文件"
+              />
+              <span class="field-hint">英文逗号分隔，例如 manifest.json, README.md。</span>
+            </label>
+
+            <label class="field config-wide" for="config-forbidden-patterns">
+              <span class="field-label">禁用模式</span>
+              <input
+                class="input mono"
+                id="config-forbidden-patterns"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="禁用模式"
+              />
+              <span class="field-hint">英文逗号分隔的 glob 模式，例如 *.env, *.pem。</span>
+            </label>
+
+            <div class="field config-scan">
+              <span class="field-label">内容扫描</span>
+              <label class="switch-row" for="config-scan-content">
+                <input type="checkbox" id="config-scan-content" />
+                <span class="switch" aria-hidden="true"><span></span></span>
+                <span class="switch-copy">
+                  <span>扫描文件内容</span>
+                  <span class="field-hint">检索私钥头与云访问密钥，命中默认记为警告。</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div class="config-footer">
+            <div class="config-feedback">
+              <p class="config-status" id="config-status">
+                使用服务端默认配置，尚未应用覆盖。
+              </p>
+              <div class="config-preview" id="config-preview" hidden></div>
+            </div>
+            <div class="config-actions">
+              <button class="text-button" id="reset-config" type="button">恢复默认</button>
+              <button class="apply-button" id="apply-config" type="button">应用为本次运行</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <footer class="page-footer">
+        <span>小版本制品检测 Harness · 本地学习项目</span>
+        <span class="mono">FIVE CHECKS / ONE TRACE</span>
+      </footer>
+    </div>
+
+    <noscript>
+      <p class="noscript">这个页面需要启用 JavaScript 才能运行检测。</p>
+    </noscript>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>

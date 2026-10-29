@@ -1,13 +1,57 @@
 [
-  { "type": "tool_call", "tool": "skill.load", "args": { "name": "minor-artifact-check" } },
-  { "type": "tool_call", "tool": "artifact.open", "args": { "source": "fixture", "fixture": "${fixture}" } },
-  { "type": "tool_call", "tool": "artifact.manifest", "args": {} },
-  { "type": "tool_call", "tool": "checks.version", "args": {} },
-  { "type": "final", "content": "检测完成" },
-  { "type": "tool_call", "tool": "checks.required_files", "args": {} },
-  { "type": "tool_call", "tool": "checks.integrity", "args": {} },
-  { "type": "tool_call", "tool": "checks.forbidden", "args": {} },
-  { "type": "tool_call", "tool": "checks.changelog", "args": {} },
-  { "type": "tool_call", "tool": "report.write", "args": {} },
-  { "type": "final", "content": "检测完成" }
+  {
+    "type": "tool_call",
+    "tool": "skill.load",
+    "args": {
+      "name": "minor-artifact-check"
+    }
+  },
+  {
+    "type": "tool_call",
+    "tool": "artifact.open",
+    "args": {}
+  },
+  {
+    "type": "tool_call",
+    "tool": "artifact.manifest",
+    "args": {}
+  },
+  {
+    "type": "tool_call",
+    "tool": "checks.version",
+    "args": {}
+  },
+  {
+    "type": "final",
+    "content": "检测完成"
+  },
+  {
+    "type": "tool_call",
+    "tool": "checks.required_files",
+    "args": {}
+  },
+  {
+    "type": "tool_call",
+    "tool": "checks.integrity",
+    "args": {}
+  },
+  {
+    "type": "tool_call",
+    "tool": "checks.forbidden",
+    "args": {}
+  },
+  {
+    "type": "tool_call",
+    "tool": "checks.changelog",
+    "args": {}
+  },
+  {
+    "type": "tool_call",
+    "tool": "report.write",
+    "args": {}
+  },
+  {
+    "type": "final",
+    "content": "检测完成"
+  }
 ]
